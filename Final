@@ -1,3 +1,168 @@
-module top()
+//rough draft of top module
+`timescale 1ns / 1ps
+module top (
+    input clk,                   // System clock
+    input reset,                 // System reset
+    input [2:0] starting_pad_color, // Input signal indicating starting pad color (3-bit: Red, Green, Blue)
+    input ir_emitter_signal,    // Signal from IR 
+    input pickup_detected,       // Sensor signal indicating the package is picked up
+    input desk_reached,          // Signal indicating the rover reached the desk
+    input dropoff_reached,       // Signal indicating the rover reached the dropoff pad
+    output [2:0] ir_signal,      // IR signal for pad color communication
+    output pickup_action,        // Control signal for package pickup mechanism
+    output dropoff_action,       // Control signal for package dropoff mechanism
+    output [1:0] nav_control     // Control signals for navigation
+);
+
+    // Internal signals
+    wire color_detect_done;      // Signal indicating color detection is complete
+    wire ir_comm_done;           // Signal indicating IR communication is complete
+    wire pickup_done;            // Signal indicating pickup action is complete
+    wire dropoff_done;           // Signal indicating dropoff action is complete
+
+    // State encoding
+    typedef enum logic [2:0]  // this part of the code is not working, it does not recognize typedef 
+    {
+        IDLE           = 3'b000,
+        COLOR_IDENTIFY = 3'b001,
+        NAV_TO_DESK    = 3'b010,
+        IR_COMM        = 3'b011,
+        PICKUP         = 3'b100,
+        NAV_TO_DROPOFF = 3'b101,
+        DROPOFF        = 3'b110
+    } state_t;
+
+    state_t current_state, next_state;
+
+    // State transition logic
+    always @(posedge clk or posedge reset) begin
+        if (reset) 
+            current_state <= IDLE;
+        else
+            current_state <= next_state;
+    end
+
+    // Next state logic
+    always @(*) begin
+        next_state = current_state; // Default to hold state
+        case (current_state)
+            IDLE: begin
+                if (starting_pad_color != 3'b000) // Starting pad color detected
+                    next_state = COLOR_IDENTIFY;
+            end
+            COLOR_IDENTIFY: begin
+                if (color_detect_done)
+                    next_state = NAV_TO_DESK;
+            end
+            NAV_TO_DESK: begin
+                if (desk_reached)
+                    next_state = IR_COMM;
+            end
+            IR_COMM: begin
+                if (ir_comm_done)
+                    next_state = PICKUP;
+            end
+            PICKUP: begin
+                if (pickup_done)
+                    next_state = NAV_TO_DROPOFF;
+            end
+            NAV_TO_DROPOFF: begin
+                if (dropoff_reached)
+                    next_state = DROPOFF;
+            end
+            DROPOFF: begin
+                if (dropoff_done)
+                    next_state = IDLE;
+            end
+        endcase
+    end
+
+    // Output control logic
+    reg color_detect_enable;
+    reg ir_comm_enable;
+    reg pickup_enable;
+    reg dropoff_enable;
+    reg [1:0] nav_command;
+
+    always @(*) begin
+        // Default values
+        color_detect_enable = 1'b0;
+        ir_comm_enable = 1'b0;
+        pickup_enable = 1'b0;
+        dropoff_enable = 1'b0;
+        nav_command = 2'b00;
+
+        case (current_state)
+            COLOR_IDENTIFY: begin
+                color_detect_enable = 1'b1;
+            end
+            NAV_TO_DESK: begin
+                nav_command = 2'b01; // Command to navigate to the desk
+            end
+            IR_COMM: begin
+                ir_comm_enable = 1'b1;
+            end
+            PICKUP: begin
+                pickup_enable = 1'b1;
+            end
+            NAV_TO_DROPOFF: begin
+                nav_command = 2'b10; // Command to navigate to dropoff pad
+            end
+            DROPOFF: begin
+                dropoff_enable = 1'b1;
+            end
+        endcase
+    end
+
+    // Submodule Instantiations
+
+    // Color Detection
+    ColorDetection color_detection (
+        .clk(clk),
+        .reset(reset),
+        .enable(color_detect_enable),
+        .pad_color(starting_pad_color),
+        .done(color_detect_done)
+    );
+
+    // Navigation
+    Navigation navigation (
+        .clk(clk),
+        .reset(reset),
+        .command(nav_command),
+        .desk_reached(desk_reached),
+        .dropoff_reached(dropoff_reached)
+    );
+
+    // IR Communication
+    IRCommunication ir_communication (
+        .clk(clk),
+        .reset(reset),
+        .enable(ir_comm_enable),
+        .pad_color(starting_pad_color),
+        .ir_signal(ir_signal),
+        .done(ir_comm_done)
+    );
+
+    // Package Pickup
+    PackagePickup pickup (
+        .clk(clk),
+        .reset(reset),
+        .enable(pickup_enable),
+        .pickup_detected(pickup_detected),
+        .action(pickup_action),
+        .done(pickup_done)
+    );
+
+    // Package Dropoff
+    PackageDropoff dropoff (
+        .clk(clk),
+        .reset(reset),
+        .enable(dropoff_enable),
+        .action(dropoff_action),
+        .done(dropoff_done)
+    );
 
 endmodule
+
+
