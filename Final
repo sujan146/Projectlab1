@@ -1,5 +1,3 @@
-//rough draft of top module
-`timescale 1ns / 1ps
 module top (
     input clk,                   // System clock
     input reset,                 // System reset
@@ -21,18 +19,17 @@ module top (
     wire dropoff_done;           // Signal indicating dropoff action is complete
 
     // State encoding
-    typedef enum logic [2:0]  // this part of the code is not working, it does not recognize typedef 
-    {
-        IDLE           = 3'b000,
-        COLOR_IDENTIFY = 3'b001,
-        NAV_TO_DESK    = 3'b010,
-        IR_COMM        = 3'b011,
-        PICKUP         = 3'b100,
-        NAV_TO_DROPOFF = 3'b101,
-        DROPOFF        = 3'b110
-    } state_t;
+    parameter IDLE           = 3'b000;
+    parameter COLOR_IDENTIFY = 3'b001;
+    parameter NAV_TO_DESK    = 3'b010;
+    parameter IR_COMM        = 3'b011;
+    parameter PICKUP         = 3'b100;
+    parameter NAV_TO_DROPOFF = 3'b101;
+    parameter DROPOFF        = 3'b110;
 
-    state_t current_state, next_state;
+    // State registers
+    reg [2:0] current_state, next_state;
+
 
     // State transition logic
     always @(posedge clk or posedge reset) begin
